@@ -3,9 +3,43 @@
 [![CI](https://github.com/PlatformStackPulse/tf-atom-ec2-instance-aws/actions/workflows/ci.yml/badge.svg)](https://github.com/PlatformStackPulse/tf-atom-ec2-instance-aws/actions/workflows/ci.yml)
 ![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.6.0-blueviolet)
 
-## Purpose
+Terraform atom that provisions a single AWS EC2 instance with secure-by-default settings (IMDSv2 required, encrypted root volume, detailed monitoring). Naming and tagging are driven by the [tf-label](https://github.com/PlatformStackPulse/tf-label) context, so the instance participates consistently in a wider composition.
 
-Terraform atom: AWS EC2 Instance - creates a virtual machine with secure defaults (IMDSv2, encrypted root).
+## Features
+
+- **Single EC2 instance** (`aws_instance`) with the tf-label `id` as its `Name` tag.
+- **Enable/disable toggle** — set `enabled = false` to plan zero resources without removing the module from your configuration.
+- **Secure metadata (IMDSv2)** — `http_tokens = required`, `http_endpoint = enabled`, hop limit `2`.
+- **Encrypted root volume** — `encrypted = true`, `delete_on_termination = true`, configurable `root_volume_type` (default `gp3`) and `root_volume_size` (default `20` GB).
+- **Detailed monitoring** — on by default via `monitoring_enabled`.
+- **Flexible attachment** — optional `subnet_id`, `vpc_security_group_ids`, `key_name`, `iam_instance_profile`, and `user_data` / `user_data_base64`.
+- **Consistent naming & tagging** — full tf-label context passthrough (`namespace`, `stage`, `name`, `tags`, ...).
+
+## Usage
+
+```hcl
+module "ec2_instance" {
+  source = "git::https://github.com/PlatformStackPulse/tf-atom-ec2-instance-aws.git?ref=v1.0.0"
+
+  # tf-label identity
+  namespace = "eg"
+  stage     = "prod"
+  name      = "app"
+
+  # required inputs
+  ami       = "ami-0123456789abcdef0"
+  subnet_id = "subnet-0123456789abcdef0"
+
+  # optional
+  instance_type          = "t3.small"
+  vpc_security_group_ids = ["sg-0123456789abcdef0"]
+  monitoring_enabled     = true
+
+  tags = {
+    Team = "platform"
+  }
+}
+```
 
 ## Module Documentation
 
@@ -78,3 +112,22 @@ Terraform atom: AWS EC2 Instance - creates a virtual machine with secure default
 | <a name="output_private_ip"></a> [private\_ip](#output\_private\_ip) | Private IP address |
 | <a name="output_public_ip"></a> [public\_ip](#output\_public\_ip) | Public IP address (if applicable) |
 <!-- END_TF_DOCS -->
+
+## Tests
+
+Unit tests use the [Terraform test framework](https://developer.hashicorp.com/terraform/language/tests) with a mocked AWS provider — no real AWS calls or credentials are required. They assert on plan-known values (the tf-label `id`, planned resource count, and input pass-throughs).
+
+```bash
+# via Make
+make test-unit
+
+# or directly
+terraform init -backend=false
+terraform test -test-directory=tests/unit
+```
+
+Tests live in `tests/unit/`. Integration tests (if present, requiring AWS credentials) run with:
+
+```bash
+terraform test -test-directory=tests/integration
+```
